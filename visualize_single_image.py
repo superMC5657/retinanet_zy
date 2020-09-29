@@ -103,18 +103,18 @@ def detect_image(image_path, model_path, class_list):
 
             st = time.time()
             print(image.shape, image_orig.shape, scale)
-            scores, classification, transformed_anchors = model(image.cuda().float())
+            scores, classification, transformed_anchors = model(image.float())
             print('Elapsed time: {}'.format(time.time() - st))
-            idxs = np.where(scores.cpu() > 0.5)
+            idxs = np.where(scores.cpu() > 0.5)[0]
 
-            for j in range(idxs[0].shape[0]):
-                bbox = transformed_anchors[idxs[0][j], :]
+            for j in idxs:
+                bbox = transformed_anchors[j, :]
 
                 x1 = int(bbox[0] / scale)
                 y1 = int(bbox[1] / scale)
                 x2 = int(bbox[2] / scale)
                 y2 = int(bbox[3] / scale)
-                index = int(classification[idxs[0][j]]) + 1
+                index = int(classification[j]) + 1
                 label_name = labels[index]
                 print(bbox, classification.shape)
                 score = scores[j]
