@@ -11,6 +11,8 @@ import csv
 import cv2
 import argparse
 
+from retinanet.model import resnet50
+
 
 def load_classes(csv_reader):
     result = {}
@@ -45,7 +47,8 @@ def detect_image(image_path, model_path, class_list):
     for key, value in classes.items():
         labels[value] = key
 
-    model = torch.load(model_path)
+    model = resnet50(num_classes=len(labels), pretrained=False)
+    model.load_state_dict(torch.load(model_path))
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -111,7 +114,8 @@ def detect_image(image_path, model_path, class_list):
                 y1 = int(bbox[1] / scale)
                 x2 = int(bbox[2] / scale)
                 y2 = int(bbox[3] / scale)
-                label_name = labels[int(classification[idxs[0][j]])]
+                index = int(classification[idxs[0][j]]) + 1
+                label_name = labels[index]
                 print(bbox, classification.shape)
                 score = scores[j]
                 caption = '{} {:.3f}'.format(label_name, score)

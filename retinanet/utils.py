@@ -54,7 +54,7 @@ class BasicBlock(nn.Module, ABC):
 class BottleNeck(nn.Module, ABC):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride, downsample=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BottleNeck, self).__init__()
 
         self.conv1 = conv1x1(inplanes, planes)
@@ -114,12 +114,12 @@ class BBoxTransform(nn.Module, ABC):
             self.std = std
 
     def forward(self, boxes, deltas):
-        widths = boxes[:, :, 2] - boxes[:, :, :0]
+        widths = boxes[:, :, 2] - boxes[:, :, 0]
         heights = boxes[:, :, 3] - boxes[:, :, 1]
 
         # boxes标准化漂移建立在center x,y,w,h
         ctr_x = boxes[:, :, 0] + 0.5 * widths
-        ctr_y = boxes[:, :, 1] + 0.5 * widths
+        ctr_y = boxes[:, :, 1] + 0.5 * heights
 
         dx = deltas[:, :, 0] * self.std[0] + self.mean[0]
         dy = deltas[:, :, 1] * self.std[1] + self.mean[1]
@@ -134,7 +134,7 @@ class BBoxTransform(nn.Module, ABC):
         pred_boxes_x1 = pred_ctr_x - 0.5 * pred_w
         pred_boxes_y1 = pred_ctr_y - 0.5 * pred_h
         pred_boxes_x2 = pred_ctr_x + 0.5 * pred_w
-        pred_boxes_y2 = pred_ctr_y + 0.5 * pred_w
+        pred_boxes_y2 = pred_ctr_y + 0.5 * pred_h
 
         pred_boxes = torch.stack([pred_boxes_x1, pred_boxes_y1, pred_boxes_x2, pred_boxes_y2], dim=2)
         return pred_boxes
@@ -150,6 +150,6 @@ class ClipBoxes(nn.Module, ABC):
 
         boxes[:, :, 0] = torch.clamp(boxes[:, :, 0], min=0)
         boxes[:, :, 1] = torch.clamp(boxes[:, :, 1], min=0)
-        boxes[:, :, 2] = torch.clamp(boxes[:, :, 2], min=width)
-        boxes[:, :, 3] = torch.clamp(boxes[:, :, 3], min=height)
+        boxes[:, :, 2] = torch.clamp(boxes[:, :, 2], max=width)
+        boxes[:, :, 3] = torch.clamp(boxes[:, :, 3], max=height)
         return boxes
