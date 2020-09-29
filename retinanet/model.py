@@ -117,7 +117,6 @@ class ClassificationModel(nn.Module, ABC):
         super(ClassificationModel, self).__init__()
 
         self.num_classes = num_classes
-        self.num_anchors = num_anchors
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
 
@@ -146,8 +145,6 @@ class ClassificationModel(nn.Module, ABC):
 
         out = out.permute(0, 2, 3, 1).contiguous()
 
-        batch_size, width, height, channels = out.shape
-        out = out.view(batch_size, width, height, self.num_anchors, self.num_classes).contiguous()
         out = out.view(out.shape[0], -1, self.num_classes)
         return out
 
@@ -292,7 +289,7 @@ class RetinaNet(nn.Module, ABC):
                 final_anchor_boxes_indexes = torch.cat((final_anchor_boxes_indexes, final_anchor_boxes_indexes_value))
                 final_anchor_boxes_coordinates = torch.cat(
                     (final_anchor_boxes_coordinates, anchor_boxes[anchors_nms_idx]))
-                return [final_scores, final_anchor_boxes_indexes, final_anchor_boxes_coordinates]
+            return [final_scores, final_anchor_boxes_indexes, final_anchor_boxes_coordinates]
 
 
 def resnet18(num_classes, pretrained=False, **kwargs):
