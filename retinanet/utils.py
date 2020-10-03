@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+from config import use_cuda
+
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
@@ -99,14 +101,14 @@ class BBoxTransform(nn.Module, ABC):
     def __init__(self, mean=None, std=None):
         super(BBoxTransform, self).__init__()
         if mean is None:
-            if torch.cuda.is_available():
+            if use_cuda:
                 self.mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32)).cuda()
             else:
                 self.mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32))
         else:
             self.mean = mean
         if std is None:
-            if torch.cuda.is_available():
+            if use_cuda:
                 self.std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).cuda()
             else:
                 self.std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32))

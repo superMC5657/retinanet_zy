@@ -11,6 +11,7 @@ import csv
 import cv2
 import argparse
 
+from config import use_cuda
 from retinanet.model import resnet50
 
 
@@ -48,9 +49,10 @@ def detect_image(image_path, model_path, class_list):
         labels[value] = key
 
     model = resnet50(num_classes=len(labels), pretrained=False)
-    model.load_state_dict(torch.load(model_path))
+    static_dict = torch.load(model_path)
+    model.load_state_dict(static_dict)
 
-    if torch.cuda.is_available():
+    if use_cuda:
         model = model.cuda()
 
     model.training = False
@@ -98,7 +100,7 @@ def detect_image(image_path, model_path, class_list):
         with torch.no_grad():
 
             image = torch.from_numpy(image)
-            if torch.cuda.is_available():
+            if use_cuda:
                 image = image.cuda()
 
             st = time.time()

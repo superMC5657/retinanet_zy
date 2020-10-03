@@ -12,12 +12,13 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from config import use_cuda
 from retinanet.dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, UnNormalizer, \
     Normalizer
 
 assert torch.__version__.split('.')[0] == '1'
 
-print('CUDA available: {}'.format(torch.cuda.is_available()))
+print('CUDA available: {}'.format(use_cuda))
 
 
 def main(args=None):
@@ -46,13 +47,10 @@ def main(args=None):
 
     retinanet = torch.load(parser.model)
 
-    use_gpu = True
+    if use_cuda:
+        retinanet = retinanet.cuda()
 
-    if use_gpu:
-        if torch.cuda.is_available():
-            retinanet = retinanet.cuda()
-
-    if torch.cuda.is_available():
+    if use_cuda:
         retinanet = torch.nn.DataParallel(retinanet).cuda()
     else:
         retinanet = torch.nn.DataParallel(retinanet)
@@ -71,7 +69,7 @@ def main(args=None):
 
         with torch.no_grad():
             st = time.time()
-            if torch.cuda.is_available():
+            if use_cuda:
                 scores, classification, transformed_anchors = retinanet(data['img'].cuda().float())
             else:
                 scores, classification, transformed_anchors = retinanet(data['img'].float())

@@ -12,6 +12,7 @@ import torch
 import torch.optim as optim
 from torchvision import transforms
 
+from config import use_cuda
 from retinanet import model
 from retinanet.dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, \
     Normalizer
@@ -22,7 +23,7 @@ from retinanet import csv_eval
 
 assert torch.__version__.split('.')[0] == '1'
 
-print('CUDA available: {}'.format(torch.cuda.is_available()))
+print('CUDA available: {}'.format(use_cuda))
 
 
 def main(args=None):
@@ -92,13 +93,10 @@ def main(args=None):
     else:
         raise ValueError('Unsupported model depth, must be one of 18, 34, 50, 101, 152')
 
-    use_gpu = True
+    if use_cuda:
+        retinanet = retinanet.cuda()
 
-    if use_gpu:
-        if torch.cuda.is_available():
-            retinanet = retinanet.cuda()
-
-    if torch.cuda.is_available():
+    if use_cuda:
         retinanet = torch.nn.DataParallel(retinanet).cuda()
     else:
         retinanet = torch.nn.DataParallel(retinanet)
@@ -127,7 +125,7 @@ def main(args=None):
             try:
                 optimizer.zero_grad()
 
-                if torch.cuda.is_available():
+                if use_cuda:
                     classification_loss, regression_loss = retinanet([data['img'].cuda().float(), data['annot']])
                 else:
                     classification_loss, regression_loss = retinanet([data['img'].float(), data['annot']])

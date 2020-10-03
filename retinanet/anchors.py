@@ -8,6 +8,8 @@ import numpy as np
 import torch
 from torch import nn
 
+from config import use_cuda
+
 
 class Anchors(nn.Module, ABC):
 
@@ -57,7 +59,7 @@ class Anchors(nn.Module, ABC):
 
         all_anchors = np.expand_dims(all_anchors, axis=0)
 
-        if torch.cuda.is_available():
+        if use_cuda:
             return torch.from_numpy(all_anchors.astype(np.float32)).cuda()
         else:
             return torch.from_numpy(all_anchors.astype(np.float32))

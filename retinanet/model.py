@@ -9,6 +9,8 @@ from torch import nn
 import math
 import torch.utils.model_zoo as model_zoo
 from torchvision.ops import nms
+
+from config import use_cuda
 from retinanet.utils import BasicBlock, BottleNeck, BBoxTransform, ClipBoxes
 from retinanet.anchors import Anchors
 from retinanet import losses
@@ -150,7 +152,7 @@ class ClassificationModel(nn.Module, ABC):
 
 
 class RetinaNet(nn.Module, ABC):
-    def __init__(self, num_classes, block, layers):
+    def __init__(self, num_classes, block, layers, prior=0.01):
         super(RetinaNet, self).__init__()
         self.in_planes = 64
 
@@ -194,10 +196,9 @@ class RetinaNet(nn.Module, ABC):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-        prior = 0.01
-
         self.classificationModel.output.weight.data.fill_(0)
-        self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
+        classification_bias_fill = -math.log((1.0 - prior) / prior)
+        self.classificationModel.output.bias.data.fill_(classification_bias_fill)
         # 正负样本悬殊情况下这样设置bias效果最好
 
         self.regressionModel.output.weight.data.fill_(0)
@@ -262,7 +263,7 @@ class RetinaNet(nn.Module, ABC):
             final_anchor_boxes_indexes = torch.Tensor([]).long()
             final_anchor_boxes_coordinates = torch.Tensor([])
 
-            if torch.cuda.is_available():
+            if use_cuda:
                 final_scores = final_scores.cuda()
                 final_anchor_boxes_indexes = final_anchor_boxes_indexes.cuda()
                 final_anchor_boxes_coordinates = final_anchor_boxes_coordinates.cuda()
@@ -283,7 +284,7 @@ class RetinaNet(nn.Module, ABC):
 
                 final_scores = torch.cat((final_scores, scores[anchors_nms_idx]))
                 final_anchor_boxes_indexes_value = torch.tensor([i] * anchors_nms_idx.shape[0])
-                if torch.cuda.is_available():
+                if use_cuda:
                     final_anchor_boxes_indexes_value = final_anchor_boxes_indexes_value.cuda()
 
                 final_anchor_boxes_indexes = torch.cat((final_anchor_boxes_indexes, final_anchor_boxes_indexes_value))

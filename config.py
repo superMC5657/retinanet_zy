@@ -4,5 +4,5 @@
 # !@fileName: config.py
 import torch
 
-use_cuda = True
+use_cuda = False
 use_cuda = use_cuda and torch.cuda.is_available()

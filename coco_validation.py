@@ -7,13 +7,14 @@ import argparse
 import torch
 from torchvision import transforms
 
+from config import use_cuda
 from retinanet import model
 from retinanet.dataloader import CocoDataset, Resizer, Normalizer
 from retinanet import coco_eval
 
 assert torch.__version__.split('.')[0] == '1'
 
-print('CUDA available: {}'.format(torch.cuda.is_available()))
+print('CUDA available: {}'.format(use_cuda))
 
 
 def main(args=None):
@@ -30,13 +31,10 @@ def main(args=None):
     # Create the model
     retinanet = model.resnet50(num_classes=dataset_val.num_classes(), pretrained=True)
 
-    use_gpu = True
+    if use_cuda:
+        retinanet = retinanet.cuda()
 
-    if use_gpu:
-        if torch.cuda.is_available():
-            retinanet = retinanet.cuda()
-
-    if torch.cuda.is_available():
+    if use_cuda:
         retinanet.load_state_dict(torch.load(parser.model_path))
         retinanet = torch.nn.DataParallel(retinanet).cuda()
     else:
