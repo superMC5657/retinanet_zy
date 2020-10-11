@@ -7,6 +7,8 @@ from pycocotools.cocoeval import COCOeval
 import json
 import torch
 
+from config import use_cuda
+
 
 def evaluate_coco(dataset, model, threshold=0.05):
     model.eval()

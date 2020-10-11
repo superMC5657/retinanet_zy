@@ -2,7 +2,7 @@
 # !@time: 2020/9/26 15 30
 # !@author: superMC @email: 18758266469@163.com
 # !@fileName: losses.py
-from abc import ABC
+
 
 import numpy as np
 import torch
@@ -11,12 +11,9 @@ from torchvision.ops.boxes import box_iou
 from config import use_cuda
 
 
-class FocalLoss(nn.Module, ABC):
+class FocalLoss(nn.Module):
     def __init__(self):
         super(FocalLoss, self).__init__()
-        self.targets_std = torch.Tensor([[0.1, 0.1, 0.2, 0.2]])
-        if use_cuda:
-            self.targets_std.cuda()
 
     @staticmethod
     def xyxy2ctr_xywh(boxes):
@@ -34,7 +31,7 @@ class FocalLoss(nn.Module, ABC):
         regressions_losses = []
         anchor = anchors[0, :, :]  # 这是因为retinanet使用所有的anchor进行训练 所以anchors中的anchor相同
 
-        anchor_ctr_x, anchor_ctr_y, anchor_widths, anchor_heights = self.xyxy2ctr_xywh(anchors)
+        anchor_ctr_x, anchor_ctr_y, anchor_widths, anchor_heights = self.xyxy2ctr_xywh(anchor)
 
         for j in range(batch_size):
             classification = classifications[j, :, :]
@@ -58,10 +55,13 @@ class FocalLoss(nn.Module, ABC):
                 focal_weight = alpha_factor * torch.pow(focal_weight, gamma)
                 bce = -(torch.log(1.0 - classification))
                 cls_loss = focal_weight * bce
-
                 classifications_losses.append(cls_loss.sum())
-                regressions_losses.append(torch.tensor(0).float())
-                continue
+
+                regressions_loss = torch.tensor(0).float()
+                if use_cuda:
+                    regressions_loss = regressions_loss.cuda()
+                regressions_losses.append(regressions_loss)
+
             iou = box_iou(anchor, bbox_annotation[:, :4])
             iou_max, iou_argmax = torch.max(iou, dim=1)
 
@@ -86,9 +86,10 @@ class FocalLoss(nn.Module, ABC):
             bce = -(targets * torch.log(classification) + (1.0 - targets) * torch.log(1.0 - classification))
 
             cls_loss = focal_weight * bce
-            cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape))
             if use_cuda:
-                cls_loss.cuda()
+                cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape).cuda())
+            else:
+                cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape))
 
             classifications_losses.append(cls_loss.sum() / torch.clamp(num_positive_anchors.float(), min=1.0))
 
@@ -113,18 +114,31 @@ class FocalLoss(nn.Module, ABC):
 
                 targets = torch.stack((targets_dx, targets_dy, targets_dw, targets_dh))
                 targets = targets.t()
-                targets = targets / self.targets_std
+
+                targets_std = torch.Tensor([[0.1, 0.1, 0.2, 0.2]])
+                if use_cuda:
+                    targets_std = targets_std.cuda()
+                targets = targets / targets_std
 
                 negative_indices = 1 + (~positive_indices)
                 # negative_indices = torch.ge(0.5, iou_max) - positive_indices
 
                 regression_diff = torch.abs(targets - regression[positive_indices, :])
+
                 regressions_loss = torch.where(torch.le(regression_diff, 1.0 / 9.0),
                                                0.5 * 9.0 * torch.pow(regression_diff, 2),
                                                regression_diff - 0.5 / 9.0)
-                regressions_losses.append(regressions_loss.mean())
-            else:
-                regressions_losses.append(torch.tensor(0).float())
 
-        return torch.stack(classifications_losses).mean(dim=0, keepdim=True), torch.stack(regressions_losses).mean(
-            dim=0, keepdim=True)
+                ## regressions_loss == 0时 tensor在cpu上
+                regressions_loss = regressions_loss.mean()
+                regressions_losses.append(regressions_loss)
+            else:
+                regressions_loss = torch.tensor(0).float()
+                if use_cuda:
+                    regressions_loss = regressions_loss.cuda()
+                regressions_losses.append(regressions_loss)
+
+        cls_losses = torch.stack(classifications_losses).mean(dim=0, keepdim=True)
+        reg_losses = torch.stack(regressions_losses).mean(dim=0, keepdim=True)
+
+        return cls_losses, reg_losses

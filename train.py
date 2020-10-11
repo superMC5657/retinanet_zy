@@ -10,9 +10,11 @@ import numpy as np
 
 import torch
 import torch.optim as optim
+from torch import distributed
 from torchvision import transforms
-
-from config import use_cuda
+from torch.utils.data.distributed import DistributedSampler
+from config import use_cuda, batch_size, checkpoints_dir, RESTORE
+import config
 from retinanet import model
 from retinanet.dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, \
     Normalizer
@@ -20,6 +22,7 @@ from torch.utils.data import DataLoader
 
 from retinanet import coco_eval
 from retinanet import csv_eval
+from retinanet import dist
 
 assert torch.__version__.split('.')[0] == '1'
 
@@ -37,8 +40,16 @@ def main(args=None):
 
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
+    parser.add_argument('--local_rank', help='Local rank', type=int, default=0)
+    parser.add_argument('--distributed', action='store_true')
 
     parser = parser.parse_args(args)
+
+    torch.cuda.set_device(parser.local_rank)
+    DISTRIBUTED = parser.distributed and config.DISTRIBUTED
+    if DISTRIBUTED:
+        distributed.init_process_group(backend="nccl")
+    device = torch.device(f'cuda:{parser.local_rank}')
 
     # Create the data loaders
     if parser.dataset == 'coco':
@@ -72,12 +83,22 @@ def main(args=None):
     else:
         raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
 
-    sampler = AspectRatioBasedSampler(dataset_train, batch_size=2, drop_last=False)
-    dataloader_train = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
-
-    if dataset_val is not None:
-        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
-        dataloader_val = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
+    if DISTRIBUTED:
+        sampler = DistributedSampler(dataset_train)
+        dataloader_train = DataLoader(dataset_train, num_workers=4, batch_size=batch_size, collate_fn=collater,
+                                      sampler=sampler, pin_memory=True, drop_last=True)
+        if dataset_val is not None:
+            sampler_val = DistributedSampler(dataset_val)
+            dataloader_val = DataLoader(dataset_val, batch_size=1, num_workers=4, collate_fn=collater,
+                                        sampler=sampler_val, pin_memory=True, drop_last=True)
+    else:
+        sampler = AspectRatioBasedSampler(dataset_train, batch_size=batch_size, drop_last=False)
+        dataloader_train = DataLoader(dataset_train, num_workers=4, collate_fn=collater, batch_sampler=sampler,
+                                      pin_memory=True)
+        if dataset_val is not None:
+            sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
+            dataloader_val = DataLoader(dataset_val, num_workers=4, collate_fn=collater, batch_sampler=sampler_val,
+                                        pin_memory=True)
 
     # Create the model
     if parser.depth == 18:
@@ -96,10 +117,12 @@ def main(args=None):
     if use_cuda:
         retinanet = retinanet.cuda()
 
-    if use_cuda:
-        retinanet = torch.nn.DataParallel(retinanet).cuda()
-    else:
-        retinanet = torch.nn.DataParallel(retinanet)
+    if RESTORE:
+        retinanet.load_state_dict(torch.load(RESTORE))
+
+    if DISTRIBUTED:
+        retinanet = torch.nn.parallel.DistributedDataParallel(retinanet, device_ids=[parser.local_rank])
+        print("Let's use", parser.local_rank, "GPU!")
 
     retinanet.training = True
 
@@ -110,14 +133,20 @@ def main(args=None):
     loss_hist = collections.deque(maxlen=500)
 
     retinanet.train()
-    retinanet.module.freeze_bn()
+    if DISTRIBUTED:
+        retinanet.module.freeze_bn()
+    else:
+        retinanet.freeze_bn()
 
     print('Num training images: {}'.format(len(dataset_train)))
 
     for epoch_num in range(parser.epochs):
-
+        save_to_disk = parser.local_rank == 0
         retinanet.train()
-        retinanet.module.freeze_bn()
+        if DISTRIBUTED:
+            retinanet.module.freeze_bn()
+        else:
+            retinanet.freeze_bn()
 
         epoch_loss = []
 
@@ -126,7 +155,7 @@ def main(args=None):
                 optimizer.zero_grad()
 
                 if use_cuda:
-                    classification_loss, regression_loss = retinanet([data['img'].cuda().float(), data['annot']])
+                    classification_loss, regression_loss = retinanet([data['img'].cuda().float(), data['annot'].cuda()])
                 else:
                     classification_loss, regression_loss = retinanet([data['img'].float(), data['annot']])
 
@@ -147,36 +176,37 @@ def main(args=None):
                 loss_hist.append(float(loss))
 
                 epoch_loss.append(float(loss))
-
-                print(
-                    'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
-                        epoch_num, iter_num, float(classification_loss), float(regression_loss), np.mean(loss_hist)))
+                if save_to_disk:
+                    print(
+                        'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
+                            epoch_num, iter_num, float(classification_loss), float(regression_loss),
+                            np.mean(loss_hist)))
 
                 del classification_loss
                 del regression_loss
             except Exception as e:
                 print(e)
                 continue
+        if save_to_disk:
+            if parser.dataset == 'coco':
 
-        if parser.dataset == 'coco':
+                print('Evaluating dataset')
 
-            print('Evaluating dataset')
+                coco_eval.evaluate_coco(dataset_val, retinanet)
 
-            coco_eval.evaluate_coco(dataset_val, retinanet)
+            elif parser.dataset == 'csv' and parser.csv_val is not None:
 
-        elif parser.dataset == 'csv' and parser.csv_val is not None:
+                print('Evaluating dataset')
 
-            print('Evaluating dataset')
+                mAP = csv_eval.evaluate(dataset_val, retinanet)
 
-            mAP = csv_eval.evaluate(dataset_val, retinanet)
-
-        scheduler.step(np.mean(epoch_loss))
-
-        torch.save(retinanet.module, '{}_retinanet_{}.pt'.format(parser.dataset, epoch_num))
-
-    retinanet.eval()
-
-    torch.save(retinanet, 'model_final.pt')
+            scheduler.step(np.mean(epoch_loss))
+            if DISTRIBUTED:
+                torch.save(retinanet.module.state_dict(),
+                           '{}/{}_retinanet_{}.pt'.format(checkpoints_dir, parser.dataset, epoch_num))
+            else:
+                torch.save(retinanet.state_dict(),
+                           '{}/{}_retinanet_{}.pt'.format(checkpoints_dir, parser.dataset, epoch_num))
 
 
 if __name__ == '__main__':

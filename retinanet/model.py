@@ -2,7 +2,7 @@
 # !@time: 2020/9/26 15 30
 # !@author: superMC @email: 18758266469@163.com
 # !@fileName: model.py
-from abc import ABC
+
 
 import torch
 from torch import nn
@@ -32,7 +32,7 @@ def conv1x1(in_planes, out_planes):
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=1, padding=0)
 
 
-class PyramidFeatures(nn.Module, ABC):
+class PyramidFeatures(nn.Module):
     '''
     FPN
     '''
@@ -80,7 +80,7 @@ class PyramidFeatures(nn.Module, ABC):
         return [P3_x, P4_x, P5_x, P6_x, P7_x]
 
 
-class RegressionModel(nn.Module, ABC):
+class RegressionModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, feature_size=256):
         super(RegressionModel, self).__init__()
 
@@ -114,7 +114,7 @@ class RegressionModel(nn.Module, ABC):
         return out
 
 
-class ClassificationModel(nn.Module, ABC):
+class ClassificationModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
         super(ClassificationModel, self).__init__()
 
@@ -151,7 +151,7 @@ class ClassificationModel(nn.Module, ABC):
         return out
 
 
-class RetinaNet(nn.Module, ABC):
+class RetinaNet(nn.Module):
     def __init__(self, num_classes, block, layers, prior=0.01):
         super(RetinaNet, self).__init__()
         self.in_planes = 64
