@@ -4,8 +4,12 @@
 # !@fileName: demo.py
 import torch
 
-from config import RESTORE
+from retinanet.model import resnet50
+from torch.utils.tensorboard import SummaryWriter
 
-retinanet = torch.load(RESTORE)
-torch.save(retinanet.static_dict(), 'checkpoints/state_dict.pt')
-
+model = resnet50(num_classes=80, pretrained=False)
+static_dict = torch.load('checkpoints/coco_resnet_50_map_0_335_state_dict.pt')
+model.load_state_dict(static_dict)
+input_tensor = torch.rand(size=(1, 3, 512, 512))
+with SummaryWriter(comment="retinanet") as sw:
+    sw.add_graph(model, (input_tensor,))
