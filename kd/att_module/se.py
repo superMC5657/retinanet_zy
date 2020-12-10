@@ -41,11 +41,11 @@ class SSEModule(nn.Module, ABC):
         )
 
     def forward(self, x):
-        batch_size, channel_num, height, width = x.size()
+        batch_size, channel_num, width, height = x.size()
         y = x.view(batch_size, channel_num, -1)
         y = y.transpose(1, 2).contiguous()
         y = self.global_average_pool(y).view(batch_size, -1)
-        y = self.fc(y).view(batch_size, 1, height, width)
+        y = self.fc(y).view(batch_size, 1, width, height)
         return y
 
 

@@ -28,7 +28,7 @@ class SpatialAttention(nn.Module, ABC):
         self.softmax = nn.Softmax(-1)
 
     def forward(self, x):
-        batch_size, channel_num, height, width = x.size()
+        batch_size, channel_num, width, height = x.size()
         x1 = x.reshape(batch_size, channel_num, -1)
         x2 = x1.transpose(1, 2).contiguous()
         attn = torch.bmm(x2, x1)
