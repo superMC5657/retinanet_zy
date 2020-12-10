@@ -7,8 +7,6 @@ from abc import ABC
 from torch import nn
 
 
-
-
 class SpatialAttentionLoss(nn.Module, ABC):
     def __init__(self, alpha=0.1):
         super().__init__()
@@ -22,7 +20,6 @@ class ChannelAttentionLoss(nn.Module, ABC):
     def __init__(self, beta=0.1):
         super().__init__()
         self.beta = beta
-        self.c
 
     def forward(self, f1, f2):
         pass

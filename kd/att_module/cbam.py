@@ -43,3 +43,13 @@ class SpatialAttention(nn.Module, ABC):
         y = self.sigmoid(self.conv(y))
 
         return y
+
+
+if __name__ == '__main__':
+    x = torch.ones((1, 128, 10, 10))
+    ca = ChannelAttention(128)
+    ret = ca(x)
+    sa = SpatialAttention()
+    ret2 = sa(x)
+    print(ret.size())
+    print(ret2.size())
