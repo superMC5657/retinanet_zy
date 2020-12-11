@@ -22,7 +22,6 @@ from torch.utils.data import DataLoader
 
 from retinanet import coco_eval
 from retinanet import csv_eval
-from retinanet import dist
 
 assert torch.__version__.split('.')[0] == '1'
 
@@ -42,6 +41,7 @@ def main(args=None):
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
     parser.add_argument('--local_rank', help='Local rank', type=int, default=0)
     parser.add_argument('--distributed', action='store_true')
+    parser.add_argument('--pretrained', action='store_true')
 
     parser = parser.parse_args(args)
 
@@ -102,15 +102,15 @@ def main(args=None):
 
     # Create the model
     if parser.depth == 18:
-        retinanet = model.resnet18(num_classes=dataset_train.num_classes(), pretrained=True)
+        retinanet = model.retinanet18(num_classes=dataset_train.num_classes(), pretrained=parser.pretrained)
     elif parser.depth == 34:
-        retinanet = model.resnet34(num_classes=dataset_train.num_classes(), pretrained=True)
+        retinanet = model.retinanet34(num_classes=dataset_train.num_classes(), pretrained=parser.pretrained)
     elif parser.depth == 50:
-        retinanet = model.resnet50(num_classes=dataset_train.num_classes(), pretrained=True)
+        retinanet = model.retinanet50(num_classes=dataset_train.num_classes(), pretrained=parser.pretrained)
     elif parser.depth == 101:
-        retinanet = model.resnet101(num_classes=dataset_train.num_classes(), pretrained=True)
+        retinanet = model.retinanet101(num_classes=dataset_train.num_classes(), pretrained=parser.pretrained)
     elif parser.depth == 152:
-        retinanet = model.resnet152(num_classes=dataset_train.num_classes(), pretrained=True)
+        retinanet = model.retinanet152(num_classes=dataset_train.num_classes(), pretrained=parser.pretrained)
     else:
         raise ValueError('Unsupported model depth, must be one of 18, 34, 50, 101, 152')
 

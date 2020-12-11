@@ -26,7 +26,8 @@ class Self_Attn(nn.Module, ABC):
         batch_size, channel_num, width, height = x.size()
         proj_query = self.query_conv(x).view(batch_size, -1, width * height).permute(0, 2, 1).contiguous()  # B X CX(N)
         proj_key = self.key_conv(x).view(batch_size, -1, width * height)  # B X C x (*W*H)
-        attention = self.softmax(torch.bmm(proj_query, proj_key))  # transpose check
+        energy = torch.bmm(proj_query, proj_key)
+        attention = self.softmax(energy)  # transpose check
         proj_value = self.value_conv(x).view(batch_size, -1, width * height)  # B X C X N
 
         out = torch.bmm(proj_value, attention.permute(0, 2, 1).contiguous())

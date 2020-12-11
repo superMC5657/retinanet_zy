@@ -29,7 +29,7 @@ def main(args=None):
                               transform=transforms.Compose([Normalizer(), Resizer()]))
 
     # Create the model
-    retinanet = model.resnet50(num_classes=dataset_val.num_classes(), pretrained=True)
+    retinanet = model.retinanet50(num_classes=dataset_val.num_classes(), pretrained=True)
 
     if use_cuda:
         retinanet = retinanet.cuda()

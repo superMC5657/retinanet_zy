@@ -14,6 +14,7 @@ class CSEModule(nn.Module, ABC):
         hidden_state = in_planes // hidden_ratio
         super().__init__()
         self.global_average_pool = nn.AdaptiveAvgPool2d(1)
+        self.in_planes = in_planes
         self.fc = nn.Sequential(
             nn.Linear(in_planes, hidden_state, bias=False),
             nn.ReLU(inplace=True),
@@ -28,32 +29,8 @@ class CSEModule(nn.Module, ABC):
         return y
 
 
-class SSEModule(nn.Module, ABC):
-    def __init__(self, HxW, hidden_ratio=10):
-        super().__init__()
-        hidden_state = HxW // hidden_ratio
-        self.global_average_pool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(HxW, hidden_state, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_state, HxW, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        batch_size, channel_num, width, height = x.size()
-        y = x.view(batch_size, channel_num, -1)
-        y = y.transpose(1, 2).contiguous()
-        y = self.global_average_pool(y).view(batch_size, -1)
-        y = self.fc(y).view(batch_size, 1, width, height)
-        return y
-
-
 if __name__ == '__main__':
     cse = CSEModule(128)
-    sse = SSEModule(100)
     x = torch.ones((1, 128, 10, 10))
     ret = cse(x)
-    ret2 = sse(x)
     print(ret.size())
-    print(ret2.size())

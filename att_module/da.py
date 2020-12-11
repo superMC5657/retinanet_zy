@@ -20,10 +20,11 @@ class ChannelAttention(nn.Module, ABC):
         x1 = x.reshape(batch_size, channel_num, -1)
         x2 = x1.transpose(1, 2).contiguous()
         attn = torch.matmul(x1, x2)
+        return attn
 
 
 class SpatialAttention(nn.Module, ABC):
-    def __init__(self, in_planes, hidden_ratio, beta=0.1):
+    def __init__(self, beta=0.1):
         super(SpatialAttention, self).__init__()
         self.softmax = nn.Softmax(-1)
 
@@ -37,7 +38,7 @@ class SpatialAttention(nn.Module, ABC):
 
 
 if __name__ == '__main__':
-    sa = SpatialAttention(128, 16, beta=0.1)
+    sa = SpatialAttention(beta=0.1)
     x = torch.ones((1, 128, 10, 10))
     ret = sa(x)
     print(ret.size())

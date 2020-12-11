@@ -60,16 +60,17 @@ class PyramidFeatures(nn.Module):
         C3, C4, C5 = inputs
 
         P5_x = self.P5_1(C5)
-        P5_Upsample_x = self.P5_Upsample(P5_x)
+        p5_upsample_x = self.P5_Upsample(P5_x)
         P5_x = self.P5_2(P5_x)
 
         P4_x = self.P4_1(C4)
-        P4_x = P5_Upsample_x + P4_x
+
+        P4_x = p5_upsample_x + P4_x.contiguous()
         P4_upsample_x = self.P4_Upsample(P4_x)
         P4_x = self.P4_2(P4_x)
 
         P3_x = self.P3_1(C3)
-        P3_x = P4_upsample_x + P3_x
+        P3_x = P4_upsample_x + P3_x.contiguous()
         P3_x = self.P3_2(P3_x)
 
         P6_x = self.P6(C5)
@@ -152,8 +153,10 @@ class ClassificationModel(nn.Module):
 
 
 class RetinaNet(nn.Module):
-    def __init__(self, num_classes, block, layers, prior=0.01):
+    def __init__(self, num_classes, block, layers, score_thresh=0.45, nms_thresh=0.5, prior=0.01):
         super(RetinaNet, self).__init__()
+        self.nms_thresh = nms_thresh
+        self.score_thresh = score_thresh
         self.in_planes = 64
 
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -258,42 +261,29 @@ class RetinaNet(nn.Module):
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)
 
-            final_result = [[], [], []]
             final_scores = torch.Tensor([])
             final_anchor_boxes_indexes = torch.Tensor([]).long()
             final_anchor_boxes_coordinates = torch.Tensor([])
 
-            if use_cuda:
-                final_scores = final_scores.cuda()
-                final_anchor_boxes_indexes = final_anchor_boxes_indexes.cuda()
-                final_anchor_boxes_coordinates = final_anchor_boxes_coordinates.cuda()
-
             for i in range(classification.shape[2]):
                 scores = torch.squeeze(classification[:, :, i])
-                scores_over_thresh = (scores > 0.05)
+                scores_over_thresh = (scores > self.score_thresh)
                 if scores_over_thresh.sum() == 0:
                     continue
                 scores = scores[scores_over_thresh]
                 anchor_boxes = torch.squeeze(transformed_anchors)
                 anchor_boxes = anchor_boxes[scores_over_thresh]
-                anchors_nms_idx = nms(anchor_boxes, scores, 0.5)
+                anchors_nms_idx = nms(anchor_boxes, scores, self.nms_thresh)
 
-                final_result[0].extend(scores[anchors_nms_idx])
-                final_result[1].extend(torch.tensor([i] * anchors_nms_idx.shape[0]))
-                final_result[2].extend(anchor_boxes[anchors_nms_idx])
-
-                final_scores = torch.cat((final_scores, scores[anchors_nms_idx]))
-                final_anchor_boxes_indexes_value = torch.tensor([i] * anchors_nms_idx.shape[0])
-                if use_cuda:
-                    final_anchor_boxes_indexes_value = final_anchor_boxes_indexes_value.cuda()
-
-                final_anchor_boxes_indexes = torch.cat((final_anchor_boxes_indexes, final_anchor_boxes_indexes_value))
+                final_scores = torch.cat((final_scores, scores[anchors_nms_idx].cpu()))
+                final_anchor_boxes_indexes = torch.cat(
+                    (final_anchor_boxes_indexes, torch.tensor([i] * anchors_nms_idx.shape[0]).cpu()))
                 final_anchor_boxes_coordinates = torch.cat(
-                    (final_anchor_boxes_coordinates, anchor_boxes[anchors_nms_idx]))
+                    (final_anchor_boxes_coordinates, anchor_boxes[anchors_nms_idx].cpu()))
             return [final_scores, final_anchor_boxes_indexes, final_anchor_boxes_coordinates]
 
 
-def resnet18(num_classes, pretrained=False, **kwargs):
+def retinanet18(num_classes, pretrained=False, **kwargs):
     """Constructs a ResNet-18 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -304,7 +294,7 @@ def resnet18(num_classes, pretrained=False, **kwargs):
     return model
 
 
-def resnet34(num_classes, pretrained=False, **kwargs):
+def retinanet34(num_classes, pretrained=False, **kwargs):
     """Constructs a ResNet-34 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -315,7 +305,7 @@ def resnet34(num_classes, pretrained=False, **kwargs):
     return model
 
 
-def resnet50(num_classes, pretrained=False, **kwargs):
+def retinanet50(num_classes, pretrained=False, **kwargs):
     """Constructs a ResNet-50 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -326,7 +316,7 @@ def resnet50(num_classes, pretrained=False, **kwargs):
     return model
 
 
-def resnet101(num_classes, pretrained=False, **kwargs):
+def retinanet101(num_classes, pretrained=False, **kwargs):
     """Constructs a ResNet-101 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -337,7 +327,7 @@ def resnet101(num_classes, pretrained=False, **kwargs):
     return model
 
 
-def resnet152(num_classes, pretrained=False, **kwargs):
+def retinanet152(num_classes, pretrained=False, **kwargs):
     """Constructs a ResNet-152 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet

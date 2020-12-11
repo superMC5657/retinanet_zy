@@ -9,6 +9,7 @@ import torch.nn as nn
 import numpy as np
 
 from config import use_cuda
+from att_module.se import CSEModule
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -33,6 +34,7 @@ class BasicBlock(nn.Module, ABC):
         self.bn2 = nn.BatchNorm2d(planes * self.expansion)
         self.downsample = downsample
         self.stride = stride
+        self.cse = CSEModule(planes * self.expansion)
 
     def forward(self, x):
         residual = x
@@ -46,7 +48,7 @@ class BasicBlock(nn.Module, ABC):
 
         if self.downsample is not None:
             residual = self.downsample(x)
-
+        out = out * self.cse(out).expand_as(out)
         out += residual
         out = self.relu(out)
 
@@ -69,6 +71,7 @@ class BottleNeck(nn.Module, ABC):
 
         self.downsample = downsample
         self.stride = stride
+        self.cse = CSEModule(planes * self.expansion)
 
     def forward(self, x):
         residual = x
@@ -86,7 +89,7 @@ class BottleNeck(nn.Module, ABC):
 
         if self.downsample is not None:
             residual = self.downsample(x)
-
+        out = out * self.cse(out).expand_as(out)
         out += residual
         out = self.relu(out)
 
